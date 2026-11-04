@@ -10,11 +10,11 @@ The project is named `acoustic_geolocation`, not "MLAT". MLAT (multilateration) 
 
 All four pipeline stages (`physics/`, `audio/`, `adsb/`, `grid/`), `pipeline.py`, and `cli.py` are implemented and tested, including a full end-to-end test (synthetic audio + a local ADS-B CSV dump, through the real CLI/pipeline, recovering the true location to within ~35m and T0 to within ~0.2s on the test fixture). This is v1: real-world accuracy, performance at scale, and the limitations noted throughout this file are all still open. Commands:
 
-- Install (editable, with dev deps): `pip install -e '.[dev]'`
-- Run tests: `pytest`
-- Run a single test: `pytest tests/test_physics_propagation.py::test_name`
-- Geolocate a recording: `acoustic-geolocate locate <audio_file> <YYYY-MM-DD> <lat_min,lon_min,lat_max,lon_max> --adsb <dump.csv> [--dem flat:<elevation_m>] [--output json|text]`
-- Inspect detected audio events only (debugging): `acoustic-geolocate events <audio_file>`
+- Set up an isolated environment (recommended — avoids colliding with whatever `pandas`/`numpy` happen to be in a shared base environment): `uv venv .venv && uv pip install -e '.[dev]' --python .venv/bin/python`
+- Run tests: `.venv/bin/pytest` (or `pytest` if installed into the active environment instead)
+- Run a single test: `.venv/bin/pytest tests/test_physics_propagation.py::test_name`
+- Geolocate a recording: `.venv/bin/acoustic-geolocate locate <audio_file> <YYYY-MM-DD> <lat_min,lon_min,lat_max,lon_max> --adsb <dump.csv> [--dem flat:<elevation_m>] [--output json|text]`
+- Inspect detected audio events only (debugging): `.venv/bin/acoustic-geolocate events <audio_file>`
 
 ## Versioning
 
