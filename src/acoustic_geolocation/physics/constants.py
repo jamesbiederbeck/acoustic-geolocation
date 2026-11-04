@@ -1,1 +1,12 @@
-"""Physical and geodetic constants. Implemented in the physics/geodesy commit."""
+"""Physical and geodetic constants."""
+
+SPEED_OF_SOUND_MPS = 343.0
+
+WGS84_SEMI_MAJOR_AXIS_M = 6378137.0
+WGS84_FLATTENING = 1 / 298.257223563
+WGS84_SEMI_MINOR_AXIS_M = WGS84_SEMI_MAJOR_AXIS_M * (1 - WGS84_FLATTENING)
+
+# EPSG:4979 = WGS84 geodetic 3D (lon, lat, ellipsoidal height with always_xy=True)
+# EPSG:4978 = WGS84 geocentric (ECEF)
+WGS84_GEODETIC_CRS = "EPSG:4979"
+WGS84_ECEF_CRS = "EPSG:4978"

@@ -8,7 +8,7 @@ The project is named `acoustic_geolocation`, not "MLAT". MLAT (multilateration) 
 
 ## Project status
 
-Package skeleton exists (`src/acoustic_geolocation/`, `pyproject.toml`, `tests/`) but the four pipeline stages are still unimplemented stubs — only the shape (modules, planned responsibilities) is in place. Commands:
+`physics/` (geodesy, Doppler, and the propagation-delay solver) is implemented and tested. The four pipeline stages themselves (`audio/`, `adsb/`, `grid/coarse.py`, `grid/fine.py`) and `pipeline.py`/`cli.py` are still unimplemented stubs. Commands:
 
 - Install (editable, with dev deps): `pip install -e '.[dev]'`
 - Run tests: `pytest`
@@ -44,3 +44,5 @@ Key invariants to preserve when implementing this:
 - Geolocation requires real-world geospatial math (WGS84 ellipsoid, 3D slant range including terrain elevation via a DEM) — flat-earth or 2D-only distance approximations will produce wrong Doppler curves at typical aircraft altitudes/ranges.
 - The two-stage coarse→fine grid search exists for performance: the coarse stage uses cheap closed-form CPA/timing filters to eliminate most of the search space before the expensive full Doppler-curve synthesis and spectrogram-overlap scoring runs on the fine grid.
 - v1 treats barometric, orthometric (DEM/MSL), and ellipsoidal heights as equivalent — a known, documented approximation, not an oversight; a geoid-undulation correction is deferred.
+- `physics/propagation.py::solve_emission_time` takes plain `position_fn`/`velocity_fn` callables (time array -> ECEF array), not a `FlightTrack` object — `physics/` has no dependency on `adsb`/`types`. `FlightTrack` (added in the ADS-B ingestion stage) must expose `position_ecef(t)`/`velocity_ecef(t)` methods matching that signature, including returning NaN rows for times outside the track's sample range (callers of `solve_emission_time` rely on NaN propagating to a NaN, unconverged result rather than raising).
+- Newton's method, not fixed-point iteration, is used for the propagation-delay solve — fixed-point contracts at rate `|v_r|/c` and needs too many iterations for fast aircraft; Newton uses the exact derivative `1 - v_r/c` and converges in ~4-5 iterations.
