@@ -40,7 +40,7 @@ def _parabolic_peak_freq(column_db: np.ndarray, freqs: np.ndarray, idx: int) -> 
 
 def find_doppler_curves(
     spec: Spectrogram,
-    snr_threshold_db: float = 10.0,
+    snr_threshold_db: float = 18.0,
     max_jump_hz_per_frame: float = 40.0,
     max_gap_frames: int = 2,
     min_ridge_frames: int = 5,
@@ -68,14 +68,20 @@ def find_doppler_curves(
         current_freqs.clear()
 
     for frame_idx, freq in enumerate(peak_freq_per_frame):
-        if np.isnan(freq):
+        is_gap = np.isnan(freq)
+        if not is_gap and current_freqs and abs(freq - current_freqs[-1]) > max_jump_hz_per_frame * (gap + 1):
+            # Treat a single spurious jump (e.g. a noise spike stealing the
+            # argmax for one frame) as a gap rather than ending the ridge --
+            # only a *sustained* run of bad frames should split it.
+            is_gap = True
+
+        if is_gap:
             gap += 1
             if gap > max_gap_frames:
                 flush()
                 gap = 0
             continue
-        if current_freqs and abs(freq - current_freqs[-1]) > max_jump_hz_per_frame * (gap + 1):
-            flush()
+
         gap = 0
         current_times.append(float(spec.times[frame_idx]))
         current_freqs.append(float(freq))
