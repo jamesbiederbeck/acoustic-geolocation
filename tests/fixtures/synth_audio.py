@@ -5,11 +5,22 @@ closed-form forward model that acoustic_geolocation.audio.fit uses to
 recover parameters from a ridge. Generating with one implementation and
 fitting with another gives a genuine cross-check instead of a model
 testing itself.
+
+`SynthEvent` takes a generic `(observer_ecef, position_fn, velocity_fn)`
+motion, the same shape `physics.propagation.solve_emission_time` and
+`types.FlightTrack` already use -- so a real `FlightTrack`'s
+`position_ecef`/`velocity_ecef` methods slot in directly for an
+end-to-end test that needs the synthesized audio and the ADS-B track fed
+to the pipeline to agree on the *same* real-world geometry, not an
+abstract flat-frame stand-in. `make_straight_line_event` is a convenience
+constructor for the simpler abstract-frame case used by unit tests that
+don't need a real FlightTrack.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 
@@ -20,16 +31,22 @@ from acoustic_geolocation.physics.propagation import solve_emission_time
 
 @dataclass
 class SynthEvent:
+    observer_ecef: np.ndarray
+    position_fn: Callable[[np.ndarray], np.ndarray]
+    velocity_fn: Callable[[np.ndarray], np.ndarray]
     f0: float  # Hz
-    v: float  # m/s
-    d_min: float  # m
-    t_cpa_emission: float  # emission time (recording-relative seconds) of closest (non-delayed) approach
-    t_start: float  # heard-time window to render, seconds
+    t_start: float  # heard-time window to render, recording-relative seconds
     t_end: float
 
 
-def _straight_line_motion(v: float, t_cpa_emission: float, d_min: float):
-    observer = np.array([0.0, d_min, 0.0])
+def make_straight_line_event(
+    f0: float, v: float, d_min: float, t_cpa_emission: float, t_start: float, t_end: float
+) -> SynthEvent:
+    """A SynthEvent for a constant-velocity straight-line flyby in an
+    abstract flat frame (observer at the origin's `(0, d_min, 0)`, source
+    moving along x) -- for unit tests that don't need a real FlightTrack.
+    """
+    observer_ecef = np.array([0.0, d_min, 0.0])
 
     def position_fn(t_e: np.ndarray) -> np.ndarray:
         t_e = np.asarray(t_e, dtype=float)
@@ -42,7 +59,10 @@ def _straight_line_motion(v: float, t_cpa_emission: float, d_min: float):
         vel[..., 0] = v
         return vel
 
-    return observer, position_fn, velocity_fn
+    return SynthEvent(
+        observer_ecef=observer_ecef, position_fn=position_fn, velocity_fn=velocity_fn,
+        f0=f0, t_start=t_start, t_end=t_end,
+    )
 
 
 def synthesize_waveform(
@@ -59,19 +79,18 @@ def synthesize_waveform(
     waveform = np.zeros(n_samples)
 
     for event in events:
-        observer, position_fn, velocity_fn = _straight_line_motion(event.v, event.t_cpa_emission, event.d_min)
         mask = (t_heard >= event.t_start) & (t_heard <= event.t_end)
         window_indices = np.where(mask)[0]
 
-        t_e = solve_emission_time(t_heard[window_indices], observer, position_fn, velocity_fn, c=c)
+        t_e = solve_emission_time(t_heard[window_indices], event.observer_ecef, event.position_fn, event.velocity_fn, c=c)
         valid = ~np.isnan(t_e)
         indices, t_e = window_indices[valid], t_e[valid]
 
-        pos = position_fn(t_e)
-        vel = velocity_fn(t_e)
-        v_r = radial_velocity(vel, pos, observer)
+        pos = event.position_fn(t_e)
+        vel = event.velocity_fn(t_e)
+        v_r = radial_velocity(vel, pos, event.observer_ecef)
         freq = doppler_shift(event.f0, v_r, c)
-        distance = np.linalg.norm(observer - pos, axis=-1)
+        distance = np.linalg.norm(event.observer_ecef - pos, axis=-1)
         # Amplitude decays as 1/distance; scaled by a reference distance so
         # the tone sits well above `noise_amplitude` at typical test ranges
         # instead of at some physically "correct" but numerically tiny scale.
