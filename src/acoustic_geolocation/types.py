@@ -110,8 +110,13 @@ class FlightTrack:
         return np.clip(idx, 1, len(self._times) - 1)
 
     def _out_of_margin(self, t_flat: np.ndarray) -> np.ndarray:
-        return (t_flat < self._times[0] - self.extrapolation_margin_s) | (
-            t_flat > self._times[-1] + self.extrapolation_margin_s
+        # NaN query times (e.g. a non-converged solve_emission_time result)
+        # must map to NaN output, not whatever bogus finite segment
+        # np.searchsorted happens to pick for a NaN needle.
+        return (
+            (t_flat < self._times[0] - self.extrapolation_margin_s)
+            | (t_flat > self._times[-1] + self.extrapolation_margin_s)
+            | np.isnan(t_flat)
         )
 
     def position_ecef(self, t: np.ndarray) -> np.ndarray:
@@ -158,3 +163,20 @@ class Candidate:
     flight_2: FlightTrack
     t0_hypothesis: float  # absolute UTC epoch seconds for the recording's start
     coarse_time_offset_error: float
+
+
+@dataclass(eq=False)
+class ScoredCandidate:
+    """A fine-grid candidate after Doppler-curve synthesis and scoring.
+
+    `t0_refined` supersedes the coarse `candidate.t0_hypothesis` -- it is
+    re-seeded and continuously refined per fine point, not inherited from
+    the coarse parent, since the coarse cell's own position error means
+    its t0_hypothesis is only approximately right.
+    """
+
+    candidate: Candidate
+    score: float  # higher is better
+    modeled_curve_1: np.ndarray
+    modeled_curve_2: np.ndarray
+    t0_refined: float

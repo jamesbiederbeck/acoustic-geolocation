@@ -94,6 +94,25 @@ def test_returns_nan_beyond_extrapolation_margin():
     assert np.all(np.isnan(track.velocity_ecef(far_beyond)))
 
 
+def test_nan_query_time_returns_nan_not_a_bogus_finite_value():
+    """A NaN query time (e.g. a non-converged solve_emission_time result
+    fed back into position_ecef/velocity_ecef by a caller) must produce
+    NaN output. np.searchsorted doesn't raise on a NaN needle, so without
+    an explicit NaN check this would silently compute a bogus finite
+    answer at whatever segment index searchsorted happens to pick, rather
+    than propagating the NaN.
+    """
+    track = _make_track(T_ANCHOR - 300, T_ANCHOR + 300)
+
+    positions = track.position_ecef(np.array([np.nan, T_ANCHOR]))
+    assert np.all(np.isnan(positions[0]))
+    assert not np.any(np.isnan(positions[1]))
+
+    velocities = track.velocity_ecef(np.array([np.nan, T_ANCHOR]))
+    assert np.all(np.isnan(velocities[0]))
+    assert not np.any(np.isnan(velocities[1]))
+
+
 def test_solve_emission_time_resolves_sound_heard_after_track_end():
     """Regression test for the commit-2 seed bug: sound emitted shortly
     before the track's last sample, from ~2km away, is heard several
