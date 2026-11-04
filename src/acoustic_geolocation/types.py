@@ -94,6 +94,17 @@ class FlightTrack:
     def t_end(self) -> float:
         return float(self._times[-1])
 
+    @property
+    def sample_times(self) -> np.ndarray:
+        """Raw sample timestamps (seconds), time-sorted, for closed-form
+        per-segment CPA computation in grid/coarse.py."""
+        return self._times.copy()
+
+    @property
+    def sample_positions_ecef(self) -> np.ndarray:
+        """Raw sample positions in ECEF, aligned with `sample_times`."""
+        return self._ecef.copy()
+
     def _segment_index(self, t_flat: np.ndarray) -> np.ndarray:
         idx = np.searchsorted(self._times, t_flat, side="right")
         return np.clip(idx, 1, len(self._times) - 1)
@@ -124,3 +135,26 @@ class FlightTrack:
         velocities = np.broadcast_to(slope, (len(flat), 3)).copy()
         velocities[self._out_of_margin(flat)] = np.nan
         return velocities.reshape(t_arr.shape + (3,))
+
+
+@dataclass(eq=False)
+class GridPoint:
+    """A candidate observer location."""
+
+    lat: float
+    lon: float
+    elevation_m: float
+    ecef: np.ndarray  # cached (3,)
+
+
+@dataclass(eq=False)
+class Candidate:
+    """A grid point paired with the two flights hypothesized to have
+    produced the two detected Doppler events there, surviving the coarse
+    time-offset, distance, and silence filters."""
+
+    point: GridPoint
+    flight_1: FlightTrack
+    flight_2: FlightTrack
+    t0_hypothesis: float  # absolute UTC epoch seconds for the recording's start
+    coarse_time_offset_error: float
