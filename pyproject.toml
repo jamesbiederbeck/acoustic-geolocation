@@ -11,7 +11,7 @@ dynamic = ["version"]
 dependencies = [
     "numpy",
     "scipy",
-    "pandas",
+    "pandas>=2.2",  # numpy 2.x ABI compatibility
     "pyproj",
     "soundfile",
 ]
