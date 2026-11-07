@@ -26,29 +26,15 @@ from acoustic_geolocation.audio.spectrogram import generate_spectrogram
 from acoustic_geolocation.grid.coarse import delayed_cpa
 from acoustic_geolocation.physics.geodesy import FlatDem, geodetic_to_ecef
 from acoustic_geolocation.pipeline import geolocate
-from acoustic_geolocation.types import FlightTrack, GridPoint, TrackSample
+from acoustic_geolocation.types import GridPoint
 
 from .fixtures.synth_audio import SynthEvent, synthesize_waveform
-from .fixtures.synth_tracks import make_straight_track, write_adsb_csv
+from .fixtures.synth_tracks import make_straight_track, to_flight_track, write_adsb_csv
 
 T_ANCHOR = 1_700_000_000.0
 T0_TRUE = T_ANCHOR - 30.0
 TRUTH_LAT, TRUTH_LON, TRUTH_ELEV_M = 47.05, -122.05, 50.0
 BBOX = BBox(lat_min=46.95, lon_min=-122.15, lat_max=47.15, lon_max=-121.95)
-
-
-def _flight_track_from_synth(synth_track) -> FlightTrack:
-    samples = tuple(
-        TrackSample(t=float(t), lat=float(lat), lon=float(lon), alt_m=float(alt))
-        for t, lat, lon, alt in zip(synth_track.times, synth_track.lat, synth_track.lon, synth_track.alt_m)
-    )
-    return FlightTrack(
-        icao24=synth_track.icao24,
-        callsign=synth_track.callsign,
-        aircraft_type=synth_track.aircraft_type,
-        is_propeller=synth_track.is_propeller,
-        samples=samples,
-    )
 
 
 def _shifted(flight_method, t0: float):
@@ -83,8 +69,8 @@ def test_pipeline_recovers_truth_from_synthetic_audio_and_adsb_dump(
         "PROP2", 47.05, -122.034, 1800.0, heading_deg=0.0, speed_mps=100.0,
         t_anchor=T_ANCHOR + 150.0, t_start=T_ANCHOR - 150, t_end=T_ANCHOR + 450, is_propeller=True,
     )
-    track1 = _flight_track_from_synth(synth_track1)
-    track2 = _flight_track_from_synth(synth_track2)
+    track1 = to_flight_track(synth_track1)
+    track2 = to_flight_track(synth_track2)
 
     adsb_path = tmp_path / "adsb.csv"
     write_adsb_csv(adsb_path, [synth_track1, synth_track2])

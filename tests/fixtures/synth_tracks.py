@@ -17,9 +17,15 @@ import numpy as np
 import pandas as pd
 
 from acoustic_geolocation.physics.geodesy import ecef_to_geodetic, geodetic_to_ecef
+from acoustic_geolocation.types import FlightTrack, TrackSample
 
 
-def _local_enu_basis(lat_deg: float, lon_deg: float) -> tuple[np.ndarray, np.ndarray]:
+def local_enu_basis(lat_deg: float, lon_deg: float) -> tuple[np.ndarray, np.ndarray]:
+    """East/north unit vectors (ECEF) at `(lat_deg, lon_deg)` -- the local
+    tangent-plane basis used to turn a heading + speed into an ECEF
+    velocity vector. Shared by `make_straight_track` and
+    `simulate_airspace.py`'s curved-path dead reckoning.
+    """
     lat, lon = np.radians(lat_deg), np.radians(lon_deg)
     east = np.array([-np.sin(lon), np.cos(lon), 0.0])
     north = np.array([-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)])
@@ -58,7 +64,7 @@ def make_straight_track(
     fixed as a constant ECEF velocity vector for the whole track).
     """
     anchor_ecef = geodetic_to_ecef(anchor_lat, anchor_lon, anchor_alt_m)
-    east, north = _local_enu_basis(anchor_lat, anchor_lon)
+    east, north = local_enu_basis(anchor_lat, anchor_lon)
     heading = np.radians(heading_deg)
     direction = np.sin(heading) * east + np.cos(heading) * north
     velocity_ecef = speed_mps * direction
@@ -100,3 +106,21 @@ def tracks_to_dataframe(tracks: list[SynthTrack]) -> pd.DataFrame:
 
 def write_adsb_csv(path, tracks: list[SynthTrack]) -> None:
     tracks_to_dataframe(tracks).to_csv(path, index=False)
+
+
+def to_flight_track(track: SynthTrack) -> FlightTrack:
+    """Convert a SynthTrack's raw lat/lon/alt/time arrays into a real
+    FlightTrack, so synthetic tracks and a real ADS-B dump of the same
+    data agree on the exact same ECEF interpolation the pipeline uses.
+    """
+    samples = tuple(
+        TrackSample(t=float(t), lat=float(lat), lon=float(lon), alt_m=float(alt))
+        for t, lat, lon, alt in zip(track.times, track.lat, track.lon, track.alt_m)
+    )
+    return FlightTrack(
+        icao24=track.icao24,
+        callsign=track.callsign,
+        aircraft_type=track.aircraft_type,
+        is_propeller=track.is_propeller,
+        samples=samples,
+    )

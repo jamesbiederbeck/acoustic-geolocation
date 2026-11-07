@@ -72,8 +72,16 @@ def synthesize_waveform(
     noise_amplitude: float = 0.01,
     reference_distance_m: float = 1000.0,
     seed: int = 0,
+    duration_s: float | None = None,
 ) -> tuple[np.ndarray, int]:
-    duration = max(event.t_end for event in events)
+    """`duration_s` overrides the inferred `max(event.t_end)` length --
+    needed when events are deliberately clipped to a sub-window shorter
+    than the full intended recording (see
+    `simulate_recording.py::synthesize_recording_at`), where the overall
+    waveform must still span the full recording, not just the loudest
+    track's own window.
+    """
+    duration = duration_s if duration_s is not None else max(event.t_end for event in events)
     n_samples = int(duration * samplerate)
     t_heard = np.arange(n_samples) / samplerate
     waveform = np.zeros(n_samples)
